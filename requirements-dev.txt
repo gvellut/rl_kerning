@@ -1,0 +1,6 @@
+black>=18
+isort
+flake8>=3.6
+sphinx
+twine
+pytest>=4
