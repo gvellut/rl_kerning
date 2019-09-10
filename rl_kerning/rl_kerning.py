@@ -6,6 +6,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import uharfbuzz as hb
 
+SCALE_MULT = 1e5
+
 
 class RLKerningError(Exception):
     pass
@@ -30,13 +32,12 @@ def canvas_drawStringHB(
     # assumes the cached_shape buffer corresponds to the current text and style
     # of the canvas
     for i, pos in enumerate(cached_shape.glyph_positions):
-        xchar = x + x_advance + pos.x_offset
-        print(f"offset {pos.x_offset}")
+        xchar = x + x_advance / SCALE_MULT + pos.x_offset / SCALE_MULT
         if pdf_canvas.bottomup:
             # TODO verify if y_advance / offset is always be 0 for horizontal languages
-            ychar = y + y_advance + pos.y_offset
+            ychar = y + y_advance / SCALE_MULT + pos.y_offset / SCALE_MULT
         else:
-            ychar = y - y_advance - pos.y_offset
+            ychar = y - y_advance / SCALE_MULT - pos.y_offset / SCALE_MULT
 
         t.setTextOrigin(xchar, ychar)
         t.textOut(text[i])
@@ -57,7 +58,8 @@ def stringWidthHB(cached_shape):
     x_advance = 0
     for pos in cached_shape.glyph_positions:
         x_advance += pos.x_advance
-    return x_advance
+
+    return x_advance / SCALE_MULT
 
 
 def canvas_shape(pdf_canvas, text, features: Dict[str, bool] = None):
@@ -76,7 +78,9 @@ def shape(text, font_name, font_size, features: Dict[str, bool] = None):
     face = hb.Face(fontdata)
     font = hb.Font(face)
 
-    font.scale = (font_size, font_size)
+    # HB scales to integers in offset and advance so very big scale
+    # will divide by SCALE_MULT to get the actual size in fractional points
+    font.scale = (font_size * SCALE_MULT, font_size * SCALE_MULT)
     hb.ot_font_set_funcs(font)
     buf = hb.Buffer()
     buf.add_str(text)
@@ -97,7 +101,7 @@ if __name__ == "__main__":
     pdf_canvas.saveState()
     font = ("tnr", 26)
     pdf_canvas.setFont(*font)
-    text = "Guilhem Ve"
+    text = "l Guilhem Vell AV T.W. Lewis"
     cached_shape = canvas_shape(pdf_canvas, text)
     canvas_drawStringHB(pdf_canvas, 1.5 * inch, 1.7 * inch, text, cached_shape)
     pdf_canvas.drawString(1.5 * inch, 2 * inch, text)
