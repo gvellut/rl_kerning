@@ -14,9 +14,9 @@ class RLKerningError(Exception):
 
 
 # TODO drop the text arg once drawGlyphs has been implemented
-def canvas_drawStringHB(
-    pdf_canvas, x, y, text, cached_shape=None, mode=None, direction=None
-):
+# TODO rajouter sapce between words
+# TODO struct cached_shape which includes the font name and size
+def drawStringHB(pdf_canvas, x, y, text, cached_shape, mode=None, direction=None):
     """Draws a string in the current text styles."""
 
     if sys.version_info[0] == 3 and not isinstance(text, str):
@@ -49,26 +49,23 @@ def canvas_drawStringHB(
     pdf_canvas.drawText(t)
 
 
-def canvas_stringWidthHB(pdf_canvas, text, features=None):
-    buf = canvas_shape(pdf_canvas, text, features)
-    return stringWidthHB(buf)
-
-
 def stringWidthHB(cached_shape):
     x_advance = 0
+    # actually equals to :
+    # font.stringWidth (which sums the glyph widths) + 2*sum(x_offset)
     for pos in cached_shape.glyph_positions:
         x_advance += pos.x_advance
 
     return x_advance / SCALE_MULT
 
 
-def canvas_shape(pdf_canvas, text, features: Dict[str, bool] = None):
+def canvas_shapeHB(pdf_canvas, text, features: Dict[str, bool] = None):
     font_name = pdf_canvas._fontname
     font_size = pdf_canvas._fontsize
-    return shape(text, font_name, font_size, features)
+    return shapeHB(text, font_name, font_size, features)
 
 
-def shape(text, font_name, font_size, features: Dict[str, bool] = None):
+def shapeHB(text, font_name, font_size, features: Dict[str, bool] = None):
     font = pdfmetrics.getFont(font_name)
     if not isinstance(font, TTFont):
         # TODO make valid for all types of fonts
@@ -102,8 +99,8 @@ if __name__ == "__main__":
     font = ("tnr", 26)
     pdf_canvas.setFont(*font)
     text = "l Guilhem Vell AV T.W. Lewis"
-    cached_shape = canvas_shape(pdf_canvas, text)
-    canvas_drawStringHB(pdf_canvas, 1.5 * inch, 1.7 * inch, text, cached_shape)
+    cached_shape = canvas_shapeHB(pdf_canvas, text)
+    drawStringHB(pdf_canvas, 1.5 * inch, 1.7 * inch, text, cached_shape)
     pdf_canvas.drawString(1.5 * inch, 2 * inch, text)
 
     # draw bbox
@@ -126,3 +123,47 @@ if __name__ == "__main__":
     pdf_canvas.restoreState()
     pdf_canvas.showPage()
     pdf_canvas.save()
+
+    import freetype  # isort:skip
+    from freetype.ft_enums import FT_LOAD_NO_SCALE  # isort:skip
+
+    pdfmetrics.registerFont(TTFont("FiraCode-Regular", "tests/FiraCode-Regular.ttf"))
+    face = freetype.Face("tests/FiraCode-Regular.ttf")
+    font = ("FiraCode-Regular", 26)
+    buf = shapeHB("www", *font)
+    infos = buf.glyph_infos
+    poss = buf.glyph_positions
+    for info, pos in zip(infos, poss):
+        gid = info.codepoint
+        cluster = info.cluster
+        xa = pos.x_advance / SCALE_MULT
+        xo = pos.x_offset / SCALE_MULT
+        name = face.get_glyph_name(gid)
+        a = 3
+
+    face = freetype.Face("tests/FiraCode-Regular.ttf")
+    empty = face.get_glyph_name(1625)
+    con = face.get_glyph_name(1495)
+    face.set_char_size(48 * 64)
+    face.load_glyph(1625)
+    m = face.glyph.metrics
+    a = 3
+
+    pdfmetrics.registerFont(TTFont("MinionPro-Regular", "tests/Minion Pro Regular.ttf"))
+    face = freetype.Face("tests/Minion Pro Regular.ttf")
+    units_em = face.units_per_EM
+    font = ("MinionPro-Regular", 48)
+    buf = shapeHB("ffi ffl", *font)
+    infos = buf.glyph_infos
+    poss = buf.glyph_positions
+    for info, pos in zip(infos, poss):
+        gid = info.codepoint
+        cluster = info.cluster
+        name = face.get_glyph_name(gid)
+        xa = pos.x_advance / SCALE_MULT
+        xo = pos.x_offset / SCALE_MULT
+        face.set_char_size(48 * 64)
+        face.load_glyph(gid, FT_LOAD_NO_SCALE)
+        # xa == horiadvance / units_em * font_size
+        m = face.glyph.metrics
+        a = 3
